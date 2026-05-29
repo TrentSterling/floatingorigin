@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!-- Google tag (GA4) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-27SVZGYHZ3"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-27SVZGYHZ3');
+</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Floating Origin / tront.xyz</title>
+<meta name="description" content="How to walk a million units from spawn without watching the world rattle apart. The floating-origin trick, explained, with pseudocode, a Unity C# implementation, the gotchas, plus a live procedural-IKEA sandbox.">
+<link rel="canonical" href="https://tront.xyz/floatingorigin/" />
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://tront.xyz/floatingorigin/">
+<meta property="og:title" content="Floating Origin / tront.xyz">
+<meta property="og:description" content="Walk an infinite procedural IKEA without float jitter. The floating-origin trick explained, with code.">
+<meta property="og:image" content="https://tront.xyz/floatingorigin/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://tront.xyz/floatingorigin/og-image.png">
+<link rel="icon" href="/favicon.png" type="image/png">
+
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html{font-size:16px}
+body{
+  background:#0a0c10; color:#d6d0c4;
+  font-family:Georgia,"Times New Roman",serif; line-height:1.55;
+  max-width:42rem; margin:0 auto;
+  padding:3rem 1.5rem 5rem;
+}
+a{ color:#ffda1a; text-decoration:underline; }
+a:visited{ color:#bfa11a; }
+a:hover{ color:#fff; }
+
+h1,h2,h3{ font-family:Georgia,serif; color:#fff; font-weight:normal; }
+h1{ font-size:1.9rem; line-height:1.18; margin:0 0 .3rem; }
+h2{ font-size:1.25rem; margin:2.5rem 0 .6rem; padding-top:1.5rem; border-top:1px solid #1f2329; }
+h3{ font-size:1rem; margin:1.5rem 0 .3rem; font-weight:bold; color:#e8e2d4; }
+p{ margin:0 0 1rem; }
+ul{ margin:0 0 1rem 1.4rem; }
+li{ margin-bottom:.35rem; }
+
+code{
+  font-family:"Courier New",monospace; font-size:.92em;
+  color:#ffda1a; background:#0d0d10; padding:0 3px;
+}
+pre{
+  font-family:"Courier New",monospace; font-size:.82rem; line-height:1.5;
+  background:#0d0d10; border-left:2px solid #1f2329;
+  color:#c8c8c0;
+  margin:.8rem 0 1.2rem; padding:.7rem 1rem;
+  overflow-x:auto;
+}
+pre b{ font-weight:normal; color:#fff; }
+pre i{ color:#666; font-style:italic; }
+pre .tag{ display:block; font-family:Georgia,serif; font-style:italic; font-size:.78rem; color:#666; margin-bottom:.4rem; }
+
+.lede{ font-size:1rem; color:#a8a39a; margin:0 0 1.5rem; }
+.sub{ font-family:"Courier New",monospace; font-size:.78rem; color:#666; margin-bottom:1.5rem; }
+.sub a{ color:#888; }
+.sub a:hover{ color:#ffda1a; }
+
+.callout{ border-left:2px solid #3a8de8; padding:.4rem 0 .4rem .9rem; margin:1rem 0; color:#d0d0d0; }
+.callout b{ color:#3a8de8; font-weight:normal; font-style:italic; }
+.callout.warn{ border-left-color:#ff8a3d; }
+.callout.warn b{ color:#ff8a3d; }
+
+.demo-card{
+  display:block; position:relative;
+  background:#0a0c10; border:1px solid #1f2329;
+  padding:2rem 1.5rem 2.2rem; margin:1.2rem 0 .4rem;
+  text-decoration:none; color:#d6d0c4;
+  transition:border-color .15s, background .15s;
+  overflow:hidden;
+}
+.demo-card:hover{ border-color:#ffda1a; background:#10120a; }
+.demo-card::before{
+  content:""; position:absolute; left:0; top:0; bottom:0;
+  width:4px; background:#ffda1a;
+}
+.demo-card::after{
+  content:"\221E"; position:absolute; right:1.2rem; top:1rem;
+  font-family:Georgia,serif; font-style:italic; font-size:3.2rem;
+  color:#ffda1a; opacity:.28; line-height:1;
+}
+.demo-card .eyebrow{
+  font-family:"Courier New",monospace; font-size:.72rem;
+  letter-spacing:.18em; text-transform:uppercase; color:#ffda1a;
+  margin-bottom:.45rem;
+}
+.demo-card .head{
+  font-family:Georgia,serif; font-style:italic;
+  font-size:1.45rem; color:#fff; line-height:1.15; margin-bottom:.4rem;
+}
+.demo-card .body{ font-size:.92rem; color:#a8a39a; margin-bottom:.9rem; max-width:36rem; }
+.demo-card .body code{ background:#0d0d10; color:#ffda1a; font-size:.88em; padding:0 3px; }
+.demo-card .cta{
+  font-family:"Courier New",monospace; font-size:.78rem;
+  color:#ffda1a; text-decoration:underline; text-underline-offset:3px;
+}
+.demo-card:hover .cta{ color:#fff; }
+.cap{ font-size:.85rem; color:#888; font-style:italic; }
+
+footer{ margin-top:3rem; padding-top:1rem; border-top:1px solid #1f2329; font-size:.85rem; color:#888; }
+footer p{ margin-bottom:.3rem; }
+
+hr{ border:0; border-top:1px solid #1f2329; margin:2rem 0; }
+</style>
+</head>
+<body>
+
+<p class="sub"><a href="https://tront.xyz/">tront.xyz</a> &nbsp;/&nbsp; floatingorigin</p>
+
+<h1>Floating origin: how to walk a million units from spawn without watching the world rattle apart.</h1>
+<p class="lede">A 1996 flight-sim trick, ported to a JavaScript / Three.js sandbox built like an infinite procedural IKEA. The engine quietly teleports the world back toward <code>(0, 0, 0)</code> as you traverse; you stay forever in the small, precise center of float-space.</p>
+
+<p style="font-family:'Courier New',monospace;font-size:.78rem;color:#888;margin-bottom:2rem">
+[ <a href="demo/">live demo</a> ] &nbsp; [ <a href="https://github.com/TrentSterling/floatingorigin">source</a> ]
+</p>
+
+<h2>The float-precision wall</h2>
+<p>Every 3D engine you'll touch stores positions as 32-bit floats. They get roughly <strong>7 digits of precision</strong>. That's plenty when your coordinates fit in a phone booth; it breaks when your coordinates fit a small country.</p>
+<ul>
+  <li>At <code>X = 50,000</code>, the smallest distinguishable step is around <code>0.004</code> units. Your character animations look slightly twitchy; vertices on distant geometry have started shimmering.</li>
+  <li>At <code>X = 1,000,000</code>, the step is <code>0.06</code> units. That's bigger than a footstep. The camera shakes; physics rattles; collision normals flicker; light probes pop.</li>
+  <li>By <code>X = 16,777,216</code> (<code>2&sup1;&#8308;</code>, the largest integer a float can still represent exactly) you've lost <em>integer</em> precision.</li>
+</ul>
+<p>This is the wall every open-world game eventually runs into. Unreal solved it with a "world origin rebasing" system in 4.4; Star Citizen went full 64-bit; Minecraft straight-up freezes if you push past the Far Lands. Indie open-worlds usually pretend they'll never hit it and then they do.</p>
+
+<h2>The trick</h2>
+<p>You lie to the engine. Keep the player physically near <code>(0, 0, 0)</code> at all times. When they drift past a threshold (say <code>300</code> units), <strong>teleport them back to zero, and shift the entire world the same amount in the same direction.</strong> From inside the engine, nothing changed: same relative positions, same view, same physics. But your camera coordinates stayed small and precise.</p>
+<p>From the player's POV the world looks seamless; nothing snaps, nothing reloads. The only thing that moved is a counter you keep in software.</p>
+
+<h2>Two coordinate systems running in parallel</h2>
+<p>You'll need both, and you'll need to know which one any given value lives in.</p>
+<ul>
+  <li><strong>Engine space</strong>: what the renderer / physics / shaders see. Small numbers, near zero, lossy 32-bit floats. Anything that touches a GPU vertex or a Rigidbody lives here.</li>
+  <li><strong>World space</strong>: where the player <em>actually</em> is. Huge numbers, 64-bit doubles (or int64 if you're disciplined). Anything that touches save files, network sync, chunk seeding, or quest triggers lives here.</li>
+</ul>
+<p>The bridge is a running tally of every shift you've ever applied; call it <code>globalOffset</code>. The player's absolute world position is always <code>engineCamera + globalOffset</code>. JavaScript makes this easy because every <code>Number</code> is already a double; in C# you use <code>double</code> explicitly.</p>
+
+<h2>The shift, in five lines</h2>
+<p>Per frame, after you've applied input to <code>engineCam</code> and worked out <code>absPos = engineCam + globalOffset</code>, recenter only if the engine camera has drifted past the threshold:</p>
+<pre><span class="tag">pseudocode</span><b>if</b> length(engineCam.xz) &gt; THRESHOLD:
+    shift          = (engineCam.x, 0, engineCam.z)
+    globalOffset  += shift
+    engineCam     -= shift
+    <b>for</b> chunk <b>in</b> chunks: chunk.position -= shift</pre>
+<p>Order matters: derive <code>absPos</code> from the still-drifted camera before you recenter, or you'll lose track of which chunk you're standing on. Place a chunk back into engine space by subtracting the offset (<code>engineX = chunkWorldX - globalOffset.x</code>), and hash the chunk's <i>world</i> coords (never the engine coords) with a fixed seed to make the procgen deterministic across machines.</p>
+<p class="cap">Press <code>H</code> inside the demo for the full pseudocode walkthrough with setup, per-frame, chunk placement, and deterministic generation, in tabbed form.</p>
+
+<h2>Threshold tuning</h2>
+<p>Big enough that you don't shift every frame, small enough that floats stay precise.</p>
+<ul>
+  <li><strong>Browsers / WebGL</strong>: <code>300&ndash;500</code>. Tighter because GLSL highp on phones is often only mediump in practice.</li>
+  <li><strong>Unity, Unreal, native engines</strong>: <code>1000&ndash;2000</code> is comfortable; precision is fine up to roughly <code>10,000</code> before you start to see it.</li>
+  <li><strong>Cinematic camera work</strong>: drop the threshold. A 35mm-equivalent locked-off shot will reveal sub-millimeter judder long before a first-person camera will.</li>
+</ul>
+
+<h2>Why parenting one big worldRoot doesn't work</h2>
+<p>A common first instinct is to parent every chunk to one big <code>worldRoot</code> transform and translate <em>that root</em> instead of the player. It seems cleaner: one transform to move, no per-chunk bookkeeping. It also breaks for the exact reason as before.</p>
+<p>Float precision lives at the <strong>final composed transform</strong>, not just at the player. Once your <code>worldRoot</code> sits at <code>(-4,000,000, 0, 0)</code>, child translations like <code>0.001</code> round down to zero. The whole world starts twitching on chunk boundaries the same way the player would have.</p>
+<p>You have to shift each chunk individually (or shift a small pool of nearby roots that themselves don't drift far). That's what the demo does, that's what real implementations do.</p>
+
+<div class="callout"><b>Watch the demo.</b> The yellow pillar sits at engine origin <code>(0, 0, 0)</code>. As you walk, it stays put, because it does. When the floating-origin event fires, the pillar appears to teleport <em>toward you</em>, but actually <em>you</em> teleported to it. Everything else shifts to compensate, so the world looks seamless. Hold <code>SHIFT</code> to traverse fast and trigger shifts in seconds.</div>
+
+<h2>Live demo</h2>
+<a class="demo-card" href="demo/" target="_blank" rel="noopener">
+  <div class="eyebrow">interactive sandbox</div>
+  <div class="head">Infinite Ikea / Floating Origin</div>
+  <div class="body">Walk an infinite procedural IKEA at full sprint. The yellow pillar sits at engine origin <code>(0, 0, 0)</code>; when you drift past the threshold ring, watch the world snap toward you as the shift counter ticks. WASD + mouse, <code>SHIFT</code> for 14x boost, <code>SPACE</code> / <code>CTRL</code> for altitude, <code>H</code> for the in-demo tabbed reference.</div>
+  <span class="cta">launch demo &rarr;</span>
+</a>
+<p class="cap">Opens in a new tab. Pointer-lock + the HUD panels (telemetry, threshold ring, chunk minimap, controls) want the whole viewport; iframing them down to 16:9 crowds the layout.</p>
+
+<h2>Unity C#: <code>FloatingOrigin.cs</code></h2>
+<p>Attach to a manager GameObject. <code>player</code> is whatever you consider the center of the world (usually the main camera root or character controller). Threshold of <code>1000</code> is a typical Unity choice; the float-stable range is generous before precision visibly suffers.</p>
+<pre><span class="tag">C#</span><b>using</b> UnityEngine;
+<b>using</b> UnityEngine.SceneManagement;
+
+<b>public class</b> FloatingOrigin : MonoBehaviour
+{
+    <b>public</b> Transform player;
+    <b>public</b> <b>float</b> threshold = 1000f;
+
+    <i>// Doubles survive way past Unity float range.</i>
+    <b>public</b> <b>double</b> absoluteX, absoluteZ;
+
+    <i>// Cache these at chunk load; FindObjectsOfType in LateUpdate would tank frame time.</i>
+    [SerializeField] Rigidbody[] trackedBodies;
+    [SerializeField] ParticleSystem[] trackedParticles;
+
+    <b>void</b> LateUpdate()
+    {
+        Vector3 p = player.position;
+        <b>if</b> (p.x * p.x + p.z * p.z &lt; threshold * threshold) <b>return</b>;
+
+        Vector3 shift = <b>new</b> Vector3(p.x, 0f, p.z);
+        absoluteX += shift.x;
+        absoluteZ += shift.z;
+
+        <i>// 1. Recenter every root transform.</i>
+        <b>foreach</b> (GameObject root <b>in</b> SceneManager.GetActiveScene().GetRootGameObjects())
+            root.transform.position -= shift;
+
+        <i>// 2. Nudge active rigidbodies so interpolation doesn't snap.</i>
+        <b>foreach</b> (Rigidbody rb <b>in</b> trackedBodies)
+            <b>if</b> (rb &amp;&amp; !rb.isKinematic) rb.position -= shift;
+
+        <i>// 3. Translate every live particle in world-simulated systems.</i>
+        <b>foreach</b> (ParticleSystem ps <b>in</b> trackedParticles)
+        {
+            <b>if</b> (!ps || ps.main.simulationSpace != ParticleSystemSimulationSpace.World) <b>continue</b>;
+            <b>var</b> buf = <b>new</b> ParticleSystem.Particle[ps.particleCount];
+            <b>int</b> n = ps.GetParticles(buf);
+            <b>for</b> (<b>int</b> i = 0; i &lt; n; i++) buf[i].position -= shift;
+            ps.SetParticles(buf, n);
+        }
+    }
+}</pre>
+
+<h3>Reading the absolute position from elsewhere</h3>
+<pre><span class="tag">C#</span><i>// Anywhere in your code:</i>
+Vector3 engine = player.position;
+<b>double</b> worldX = origin.absoluteX + engine.x;
+<b>double</b> worldZ = origin.absoluteZ + engine.z;
+
+<i>// Feed worldX/worldZ to chunk generation, save files, network sync, etc.</i>
+<b>int</b> chunkX = (<b>int</b>)System.Math.Floor(worldX / CHUNK_SIZE);
+<b>int</b> chunkZ = (<b>int</b>)System.Math.Floor(worldZ / CHUNK_SIZE);</pre>
+
+<h2>Gotchas the basic version forgets</h2>
+<p>The 30-line implementation above gets the camera + static geometry working. Real games have a lot more state living in world space that also has to shift, or it'll snap and pop and break your suspension of disbelief.</p>
+
+<h3>Rigidbodies</h3>
+<p>Set <code>position</code> directly on shift. Don't use <code>MovePosition</code>; that interpolates over the next physics step and you'll see a one-frame snap. For active simulations, also kill any cached predicted positions in your physics layer.</p>
+
+<h3>Particles</h3>
+<p>Only world-simulated particles need translation. Local-space particles move with their transform automatically. The above code does the right check; if you wire it up by hand, mind the <code>simulationSpace</code>.</p>
+
+<h3>Trails &amp; Line Renderers</h3>
+<p>Their internal points live in world space and won't move with the transform. Either <code>Clear()</code> them on shift (acceptable for short-lived trails like bullets), or iterate <code>GetPositions()</code>, offset every vertex, and <code>SetPositions()</code> back (necessary for long persistent trails like skid marks).</p>
+
+<h3>Audio sources</h3>
+<p>3D positional audio on transforms shifts cleanly with the rest of the scene. For streaming sources tied to the player (footsteps, suit comms, music), parent them to the player so they never drift to begin with.</p>
+
+<h3>NavMesh</h3>
+<p>Bake per chunk with <code>NavMeshSurface</code>. A monolithic baked navmesh tied to world coordinates won't survive shifts; it'll either crash the agent or send them through walls.</p>
+
+<h3>Networked clients</h3>
+<p>Each client maintains its own engine-space origin. <strong>Never sync engine-space positions over the wire.</strong> Sync the <em>absolute</em> world position (a double pair), then convert to local engine space on receive. If you sync engine-space, two players in the same room can disagree about who's at <code>(50, 0, 0)</code> by 800,000 units.</p>
+
+<div class="callout warn"><b>Performance.</b> <code>FindObjectsOfType</code> in <code>LateUpdate</code> would tank your frame time the moment you have more than a few hundred Rigidbodies. Cache the rigidbodies and particle systems when chunks spawn; drop them when chunks despawn. The shift itself is cheap once the lists are pre-built.</div>
+
+<h2>Credits + further reading</h2>
+<p>The floating-origin trick goes back at least to <a href="https://www.flightgear.org/" target="_blank" rel="noopener">FlightGear</a> in the late 90s; flight sims hit the precision wall before anyone else because their playable area was the actual surface of the Earth. <a href="https://docs.unity3d.com/Manual/Scenes.html" target="_blank" rel="noopener">Unity's manual</a> still calls it "floating origin"; <a href="https://docs.unrealengine.com/" target="_blank" rel="noopener">Unreal</a> ships a built-in "World Origin Rebasing" since 4.4. The Three.js / IKEA implementation behind the demo is mine.</p>
+<ul>
+  <li><a href="demo/" target="_blank">The live demo</a>: walk it, watch the shift counter tick, press <code>H</code> for the in-demo modal.</li>
+  <li><a href="https://github.com/TrentSterling/floatingorigin" target="_blank" rel="noopener">github.com/TrentSterling/floatingorigin</a>: the source of this page and the demo.</li>
+  <li><a href="https://docs.unrealengine.com/4.27/en-US/BuildingWorlds/LevelStreaming/WorldComposition/" target="_blank" rel="noopener">Unreal World Composition</a>: shipping engine reference for origin rebasing.</li>
+  <li><a href="https://en.wikipedia.org/wiki/Single-precision_floating-point_format" target="_blank" rel="noopener">IEEE 754 single-precision</a>: the actual reason any of this is necessary.</li>
+</ul>
+<p>If you ship something built on this, drop a note in the <a href="https://tront.xyz/discord/" target="_blank" rel="noopener">Discord</a>.</p>
+
+<footer>
+  <p><a href="https://tront.xyz/">tront.xyz</a> / floatingorigin / 2026-05-29</p>
+  <p>Page text and the Three.js demo: MIT (<a href="https://github.com/TrentSterling/floatingorigin" target="_blank" rel="noopener">source</a>).</p>
+</footer>
+
+</body>
+</html>

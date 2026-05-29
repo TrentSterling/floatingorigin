@@ -1,0 +1,2110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!-- Google tag (GA4) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-27SVZGYHZ3"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-27SVZGYHZ3');
+</script>
+<meta charset="UTF-8">
+<title>Infinite Ikea / Floating Origin demo</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Live floating-origin sandbox: walk an infinite procedural IKEA at full speed; the engine quietly teleports the world back to (0,0,0) so float precision never bites.">
+<link rel="canonical" href="https://tront.xyz/floatingorigin/demo/" />
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://tront.xyz/floatingorigin/demo/">
+<meta property="og:title" content="Infinite Ikea / Floating Origin demo">
+<meta property="og:description" content="Walk an infinite procedural IKEA. The engine quietly shifts the world to keep you near (0,0,0).">
+<meta property="og:image" content="https://tront.xyz/floatingorigin/og-image.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="/favicon.png" type="image/png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,800;1,9..144,400;1,9..144,600;1,9..144,800&family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg-deep: #0a0c10;
+  --panel: rgba(10, 12, 16, 0.74);
+  --panel-border: rgba(245, 241, 232, 0.08);
+  --panel-accent: rgba(255, 218, 26, 0.45);
+  --text-primary: #f5f1e8;
+  --text-mid: rgba(245, 241, 232, 0.62);
+  --text-dim: rgba(245, 241, 232, 0.4);
+  --text-faint: rgba(245, 241, 232, 0.22);
+  --ikea-blue: #0051ba;
+  --ikea-blue-2: #3a8de8;
+  --ikea-yellow: #ffda1a;
+  --warn: #ff8a3d;
+  --grid-line: rgba(58, 141, 232, 0.07);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  width: 100%;
+  height: 100%;
+  background: var(--bg-deep);
+  color: var(--text-primary);
+  font-family: 'Space Mono', ui-monospace, 'Courier New', monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  overflow: hidden;
+  font-feature-settings: 'tnum' 1;
+  cursor: crosshair;
+}
+
+#three-canvas {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  display: block;
+}
+
+.bg-grid {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background-image:
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+  background-size: 64px 64px;
+  -webkit-mask-image: radial-gradient(ellipse at center, transparent 25%, black 95%);
+  mask-image: radial-gradient(ellipse at center, transparent 25%, black 95%);
+  opacity: 0.55;
+}
+
+#vignette {
+  position: fixed;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse at center, transparent 35%, rgba(0,0,0,0.6) 100%),
+    linear-gradient(to bottom, rgba(0,0,0,0.18) 0%, transparent 22%, transparent 78%, rgba(0,0,0,0.3) 100%);
+  mix-blend-mode: multiply;
+}
+
+/* ============ BRAND ============ */
+.brand {
+  position: fixed;
+  top: 28px;
+  left: 32px;
+  z-index: 10;
+  display: flex;
+  align-items: flex-start;
+  gap: 18px;
+  pointer-events: none;
+  animation: brandIn 800ms 100ms both cubic-bezier(.2,.7,.2,1);
+}
+
+.brand-mark {
+  font-family: 'Fraunces', 'Times New Roman', serif;
+  font-size: 62px;
+  line-height: 0.78;
+  color: var(--ikea-yellow);
+  font-style: italic;
+  text-shadow: 0 0 28px rgba(255, 218, 26, 0.4);
+  margin-top: -6px;
+}
+
+.back-to-tutorial {
+  position: fixed;
+  top: 32px;
+  right: 32px;
+  z-index: 12;
+  font-family: 'Space Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-mid);
+  text-decoration: none;
+  padding: 8px 12px;
+  border: 1px solid var(--panel-border);
+  background: var(--panel);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transition: color 0.15s, border-color 0.15s;
+  pointer-events: auto;
+}
+.back-to-tutorial:hover { color: var(--ikea-yellow); border-color: var(--panel-accent); }
+
+.brand-text h1 {
+  font-family: 'Fraunces', 'Times New Roman', serif;
+  font-size: 34px;
+  font-weight: 400;
+  font-style: italic;
+  letter-spacing: -0.015em;
+  line-height: 1;
+  color: var(--text-primary);
+}
+
+.brand-text .kicker {
+  margin-top: 9px;
+  font-size: 10px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
+}
+
+.brand-text .sub {
+  display: block;
+  margin-top: 14px;
+  font-size: 12px;
+  color: var(--text-faint);
+  font-style: italic;
+  font-family: 'Fraunces', 'Times New Roman', serif;
+  max-width: 340px;
+  letter-spacing: 0;
+  line-height: 1.45;
+}
+
+/* ============ PANEL BASE ============ */
+.panel {
+  position: fixed;
+  z-index: 10;
+  background: var(--panel);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  border: 1px solid var(--panel-border);
+  border-radius: 3px;
+  box-shadow: 0 24px 60px rgba(0,0,0,0.5), 0 1px 0 rgba(255, 218, 26, 0.04) inset;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.panel::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--panel-accent) 25%, var(--panel-accent) 75%, transparent);
+  pointer-events: none;
+}
+
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 11px 14px 9px;
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.tag {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.24em;
+  color: var(--ikea-yellow);
+  font-weight: 500;
+}
+
+.tag-aux {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ============ TELEMETRY ============ */
+.telemetry {
+  top: 28px;
+  right: 32px;
+  width: 296px;
+  animation: slideInRight 600ms 250ms both cubic-bezier(.2,.7,.2,1);
+}
+
+.telemetry dl { padding: 8px 14px 14px; }
+
+.telemetry .row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 7px 0;
+  border-bottom: 1px dashed rgba(245, 241, 232, 0.06);
+}
+
+.telemetry .row:last-child { border-bottom: none; }
+
+.telemetry dt {
+  font-size: 10px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.telemetry dd {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.telemetry dd .sep {
+  color: var(--text-faint);
+  font-weight: 300;
+  margin: 0 5px;
+}
+
+.telemetry dd.highlight { color: var(--ikea-yellow); }
+
+/* ============ THRESHOLD RING ============ */
+.threshold {
+  top: 308px;
+  right: 32px;
+  width: 296px;
+  animation: fadeScale 600ms 400ms both cubic-bezier(.2,.7,.2,1);
+}
+
+.ring-wrap {
+  padding: 16px 14px 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.threshold svg {
+  width: 230px;
+  height: 230px;
+  overflow: visible;
+}
+
+.crosshair-line {
+  stroke: rgba(245, 241, 232, 0.07);
+  stroke-width: 1;
+}
+
+.grid-ring {
+  fill: none;
+  stroke: rgba(245, 241, 232, 0.07);
+  stroke-width: 1;
+  stroke-dasharray: 2 4;
+}
+
+#threshold-ring {
+  fill: none;
+  stroke: var(--ikea-blue-2);
+  stroke-width: 1.5;
+  transition: stroke 200ms ease, stroke-width 200ms ease;
+}
+
+#threshold-ring.warn { stroke: var(--ikea-yellow); stroke-width: 2; }
+#threshold-ring.danger { stroke: var(--warn); stroke-width: 2.4; }
+
+#threshold-ring.flash { animation: ringFlash 750ms ease-out; }
+
+@keyframes ringFlash {
+  0% { stroke: #fff; stroke-width: 5; filter: drop-shadow(0 0 16px #fff); }
+  100% { stroke: var(--ikea-blue-2); stroke-width: 1.5; filter: none; }
+}
+
+#player-dot {
+  fill: var(--ikea-yellow);
+  filter: drop-shadow(0 0 6px rgba(255, 218, 26, 0.75));
+}
+
+#heading-line {
+  stroke: var(--ikea-yellow);
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  opacity: 0.65;
+}
+
+.ring-scale {
+  position: absolute;
+  font-size: 8px;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+}
+
+.ring-stat {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  margin-top: 2px;
+  font-variant-numeric: tabular-nums;
+}
+
+.ring-stat > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ring-stat .dim {
+  font-size: 9px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+}
+
+.ring-stat strong {
+  font-size: 20px;
+  font-weight: 500;
+  font-family: 'Fraunces', 'Times New Roman', serif;
+  font-style: italic;
+  color: var(--text-primary);
+  line-height: 1;
+}
+
+.ring-stat strong .dim {
+  font-size: 12px;
+  color: var(--text-faint);
+  letter-spacing: 0.05em;
+  margin-left: 2px;
+  font-family: 'Space Mono', monospace;
+  font-style: normal;
+  font-weight: 300;
+}
+
+#shift-count.pop { animation: numPop 600ms cubic-bezier(.2,.7,.2,1); }
+@keyframes numPop {
+  0% { transform: scale(1.5); color: var(--ikea-yellow); }
+  100% { transform: scale(1); color: var(--text-primary); }
+}
+
+/* ============ MINIMAP ============ */
+.minimap {
+  bottom: 28px;
+  left: 32px;
+  width: 312px;
+  animation: slideInLeft 600ms 550ms both cubic-bezier(.2,.7,.2,1);
+}
+
+.minimap canvas {
+  display: block;
+  width: 286px;
+  height: 286px;
+  margin: 12px auto 6px;
+}
+
+.legend {
+  display: flex;
+  justify-content: center;
+  gap: 18px;
+  padding: 6px 14px 12px;
+  font-size: 9px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+}
+
+.legend span { display: flex; align-items: center; gap: 6px; }
+.legend .dot { display: inline-block; width: 9px; height: 9px; }
+.legend .dot.loaded { background: var(--ikea-blue); }
+.legend .dot.current { background: var(--ikea-yellow); }
+.legend .dot.ghost {
+  background: rgba(255, 218, 26, 0.5);
+  border: 1.5px solid var(--ikea-yellow);
+}
+
+/* ============ CONTROLS ============ */
+.controls {
+  bottom: 28px;
+  right: 32px;
+  width: 296px;
+  animation: fadeIn 600ms 700ms both ease-out;
+}
+
+.control-grid { display: grid; gap: 9px; padding: 12px 14px 14px; }
+
+.ctrl {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 10px;
+  color: var(--text-mid);
+}
+
+.ctrl em {
+  font-style: normal;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-dim);
+}
+
+.keys { display: flex; gap: 3px; }
+
+kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  font-family: 'Space Mono', monospace;
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--text-primary);
+  background: rgba(245, 241, 232, 0.07);
+  border: 1px solid rgba(245, 241, 232, 0.13);
+  border-bottom: 2px solid rgba(245, 241, 232, 0.2);
+  border-radius: 2px;
+}
+
+/* ============ CROSSHAIR ============ */
+.center-cross {
+  position: fixed;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 32px;
+  height: 32px;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.center-cross::before, .center-cross::after {
+  content: "";
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.center-cross::before {
+  width: 32px;
+  height: 32px;
+  border: 1px solid rgba(245, 241, 232, 0.18);
+  border-radius: 50%;
+}
+
+.center-cross::after {
+  width: 4px;
+  height: 4px;
+  background: var(--ikea-yellow);
+  border-radius: 50%;
+  box-shadow: 0 0 8px rgba(255, 218, 26, 0.85);
+}
+
+/* ============ FLASH ============ */
+#flash {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, rgba(255,255,255,0.35) 0%, transparent 70%);
+  opacity: 0;
+}
+
+#flash.fire { animation: flashFire 500ms ease-out; }
+@keyframes flashFire {
+  0% { opacity: 0.9; }
+  100% { opacity: 0; }
+}
+
+/* ============ SHIFT BANNER ============ */
+#shift-banner {
+  position: fixed;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%) translateY(-110%);
+  z-index: 40;
+  padding: 16px 32px;
+  background: var(--ikea-yellow);
+  color: var(--bg-deep);
+  display: flex;
+  align-items: baseline;
+  gap: 18px;
+  border-radius: 0 0 4px 4px;
+  box-shadow: 0 16px 48px rgba(0,0,0,0.45), 0 0 0 1px rgba(0,0,0,0.1);
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
+#shift-banner.fire { animation: bannerDrop 1700ms cubic-bezier(.2,.7,.2,1); }
+
+@keyframes bannerDrop {
+  0% { transform: translateX(-50%) translateY(-110%); }
+  10% { transform: translateX(-50%) translateY(0); }
+  82% { transform: translateX(-50%) translateY(0); }
+  100% { transform: translateX(-50%) translateY(-110%); }
+}
+
+#shift-banner .kicker {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.26em;
+  font-weight: 500;
+}
+
+#shift-banner .big {
+  font-family: 'Fraunces', 'Times New Roman', serif;
+  font-style: italic;
+  font-size: 30px;
+  line-height: 1;
+}
+
+#shift-banner .num { font-size: 16px; font-weight: 500; }
+
+/* ============ LOCK PROMPT ============ */
+#lock-prompt {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  background: radial-gradient(ellipse at center, rgba(10, 12, 16, 0.55) 0%, rgba(10, 12, 16, 0.88) 70%);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 350ms ease;
+}
+
+#lock-prompt.visible { opacity: 1; pointer-events: auto; }
+
+#lock-prompt .icon {
+  font-size: 72px;
+  color: var(--ikea-yellow);
+  font-family: 'Fraunces', 'Times New Roman', serif;
+  font-style: italic;
+  text-shadow: 0 0 36px rgba(255, 218, 26, 0.45);
+  animation: pulse 2.4s ease-in-out infinite;
+  line-height: 1;
+}
+
+#lock-prompt strong {
+  font-family: 'Fraunces', 'Times New Roman', serif;
+  font-style: italic;
+  font-size: 30px;
+  font-weight: 400;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+}
+
+#lock-prompt p {
+  font-size: 10px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.24em;
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.08); opacity: 0.82; }
+}
+
+/* ============ SPEED INDICATOR ============ */
+.speed-indicator {
+  position: fixed;
+  bottom: 32px;
+  left: 50%;
+  transform: translateX(-50%) translateY(8px);
+  z-index: 10;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 12px 22px;
+  background: rgba(10, 12, 16, 0.74);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid var(--panel-border);
+  border-radius: 3px;
+  font-variant-numeric: tabular-nums;
+  opacity: 0;
+  transition: opacity 250ms ease, transform 250ms ease, border-color 200ms;
+  pointer-events: none;
+}
+
+.speed-indicator.visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+.speed-indicator.boost {
+  border-color: var(--ikea-yellow);
+  box-shadow: 0 0 24px rgba(255, 218, 26, 0.15);
+}
+
+.speed-indicator .label {
+  font-size: 9px;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.24em;
+  margin-right: 10px;
+}
+
+.speed-indicator .num {
+  font-family: 'Fraunces', 'Times New Roman', serif;
+  font-style: italic;
+  font-size: 40px;
+  line-height: 0.9;
+  color: var(--text-primary);
+}
+
+.speed-indicator.boost .num { color: var(--ikea-yellow); }
+
+.speed-indicator .unit {
+  font-size: 10px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
+}
+
+/* ============ FOOTNOTE ============ */
+.footnote {
+  position: fixed;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  font-size: 9px;
+  color: var(--text-faint);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  pointer-events: none;
+  animation: fadeIn 1200ms 1000ms both ease-out;
+}
+
+.footnote em {
+  font-style: italic;
+  font-family: 'Fraunces', 'Times New Roman', serif;
+  font-size: 11px;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--text-dim);
+}
+
+/* ============ TUTORIAL CTA ============ */
+.tutorial-toggle {
+  position: fixed;
+  top: 36px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 55;
+  padding: 9px 12px 9px 20px;
+  background: rgba(255, 218, 26, 0.08);
+  border: 1px solid rgba(255, 218, 26, 0.4);
+  border-radius: 999px;
+  color: var(--ikea-yellow);
+  font-family: 'Space Mono', monospace;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.26em;
+  font-weight: 500;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: background 200ms ease, color 200ms ease, letter-spacing 200ms ease, transform 200ms ease;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  animation: ctaIn 800ms 900ms both cubic-bezier(.2,.7,.2,1), ctaPulse 3.4s 2.4s infinite ease-in-out;
+}
+
+.tutorial-toggle:hover {
+  background: var(--ikea-yellow);
+  color: var(--bg-deep);
+  letter-spacing: 0.3em;
+  transform: translateX(-50%) translateY(-1px);
+}
+
+.tutorial-toggle .arr {
+  font-family: 'Fraunces', 'Times New Roman', serif;
+  font-style: italic;
+  font-size: 20px;
+  line-height: 0;
+  margin-top: -1px;
+}
+
+.tutorial-toggle .key-hint {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 7px;
+  font-family: 'Space Mono', monospace;
+  font-size: 10px;
+  font-weight: 700;
+  background: rgba(255, 218, 26, 0.18);
+  border: 1px solid rgba(255, 218, 26, 0.55);
+  border-radius: 2px;
+  letter-spacing: 0;
+  color: var(--ikea-yellow);
+  transition: all 200ms ease;
+}
+
+.tutorial-toggle:hover .key-hint {
+  background: rgba(10, 12, 16, 0.92);
+  border-color: var(--bg-deep);
+  color: var(--ikea-yellow);
+}
+
+@keyframes ctaIn {
+  from { opacity: 0; transform: translateX(-50%) translateY(-12px); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+@keyframes ctaPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 218, 26, 0); }
+  50% { box-shadow: 0 0 0 10px rgba(255, 218, 26, 0.06); }
+}
+
+/* ============ TUTORIAL MODAL ============ */
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(8, 10, 14, 0.78);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  padding: 28px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 280ms ease;
+  cursor: default;
+}
+
+.modal.visible { opacity: 1; pointer-events: auto; }
+
+.modal-card {
+  width: 100%;
+  max-width: 940px;
+  max-height: 88vh;
+  background: #0d1015;
+  border: 1px solid rgba(245, 241, 232, 0.1);
+  border-radius: 4px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 48px 96px rgba(0,0,0,0.65), 0 0 0 1px rgba(255, 218, 26, 0.05);
+  transform: translateY(20px) scale(0.97);
+  transition: transform 380ms cubic-bezier(.2,.7,.2,1);
+  position: relative;
+}
+
+.modal-card::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--panel-accent) 30%, var(--panel-accent) 70%, transparent);
+  pointer-events: none;
+}
+
+.modal.visible .modal-card { transform: translateY(0) scale(1); }
+
+.modal-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 24px 28px 18px;
+  border-bottom: 1px solid rgba(245, 241, 232, 0.08);
+  gap: 24px;
+}
+
+.modal-head h2 {
+  font-family: 'Fraunces', 'Times New Roman', serif;
+  font-style: italic;
+  font-weight: 400;
+  font-size: 30px;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+  line-height: 1;
+}
+
+.modal-head h2 .accent { color: var(--ikea-yellow); }
+
+.modal-head .kicker-tag {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.24em;
+  color: var(--text-faint);
+  font-family: 'Space Mono', monospace;
+  margin-bottom: 6px;
+  display: block;
+}
+
+.modal-close {
+  background: transparent;
+  border: 1px solid rgba(245, 241, 232, 0.18);
+  color: var(--text-mid);
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 18px;
+  font-family: 'Fraunces', 'Times New Roman', serif;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  transition: all 150ms ease;
+  flex-shrink: 0;
+}
+
+.modal-close:hover {
+  background: var(--ikea-yellow);
+  color: var(--bg-deep);
+  border-color: var(--ikea-yellow);
+}
+
+.modal-tabs {
+  display: flex;
+  padding: 0 24px;
+  border-bottom: 1px solid rgba(245, 241, 232, 0.08);
+  background: rgba(0,0,0,0.2);
+}
+
+.modal-tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-dim);
+  font-family: 'Space Mono', monospace;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
+  padding: 14px 18px;
+  cursor: pointer;
+  transition: all 150ms ease;
+  font-weight: 500;
+  margin-bottom: -1px;
+}
+
+.modal-tab:hover { color: var(--text-primary); }
+
+.modal-tab.active {
+  color: var(--ikea-yellow);
+  border-bottom-color: var(--ikea-yellow);
+}
+
+.modal-body {
+  padding: 26px 32px 30px;
+  overflow-y: auto;
+  flex: 1;
+  color: var(--text-mid);
+  font-size: 13px;
+  line-height: 1.72;
+}
+
+.modal-body::-webkit-scrollbar { width: 10px; }
+.modal-body::-webkit-scrollbar-track { background: transparent; }
+.modal-body::-webkit-scrollbar-thumb {
+  background: rgba(245, 241, 232, 0.1);
+  border-radius: 4px;
+}
+.modal-body::-webkit-scrollbar-thumb:hover { background: rgba(245, 241, 232, 0.18); }
+
+.modal-body p { margin-bottom: 14px; max-width: 66ch; }
+
+.modal-body h3 {
+  font-family: 'Fraunces', 'Times New Roman', serif;
+  font-style: italic;
+  font-size: 22px;
+  color: var(--text-primary);
+  margin-top: 28px;
+  margin-bottom: 10px;
+  font-weight: 400;
+  letter-spacing: -0.005em;
+}
+
+.modal-body h3:first-child { margin-top: 0; }
+
+.modal-body strong { color: var(--text-primary); font-weight: 500; }
+
+.modal-body em {
+  font-family: 'Fraunces', 'Times New Roman', serif;
+  font-size: 14px;
+  font-style: italic;
+  color: var(--text-primary);
+}
+
+.modal-body ul {
+  list-style: none;
+  padding-left: 0;
+  margin-bottom: 14px;
+}
+
+.modal-body ul li {
+  padding-left: 22px;
+  position: relative;
+  margin-bottom: 7px;
+  max-width: 66ch;
+}
+
+.modal-body ul li::before {
+  content: "→";
+  position: absolute;
+  left: 0;
+  color: var(--ikea-yellow);
+  font-family: 'Fraunces', 'Times New Roman', serif;
+  font-style: italic;
+}
+
+.modal-body pre {
+  background: #06080c;
+  border: 1px solid rgba(245, 241, 232, 0.08);
+  border-radius: 3px;
+  padding: 18px 22px 18px 22px;
+  overflow-x: auto;
+  font-family: 'Space Mono', monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-primary);
+  margin: 12px 0 20px;
+  position: relative;
+}
+
+.modal-body pre::before {
+  content: attr(data-lang);
+  position: absolute;
+  top: 8px;
+  right: 14px;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
+  color: var(--text-faint);
+  font-weight: 500;
+}
+
+.modal-body code {
+  background: rgba(255, 218, 26, 0.08);
+  color: var(--ikea-yellow);
+  padding: 1px 6px;
+  border-radius: 2px;
+  font-family: 'Space Mono', monospace;
+  font-size: 11px;
+}
+
+.modal-body pre code {
+  background: none;
+  padding: 0;
+  color: inherit;
+  font-size: 12px;
+}
+
+.c-cmt { color: rgba(245, 241, 232, 0.4); font-style: italic; }
+.c-kw  { color: #3a8de8; }
+.c-str { color: #ffda1a; }
+.c-num { color: #ff9d6c; }
+.c-typ { color: #a0c8ff; }
+.c-fn  { color: #f5f1e8; }
+
+.pane { display: none; }
+.pane.active { display: block; animation: paneIn 360ms cubic-bezier(.2,.7,.2,1); }
+
+@keyframes paneIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.callout {
+  border-left: 2px solid var(--ikea-yellow);
+  padding: 14px 18px;
+  background: rgba(255, 218, 26, 0.045);
+  margin: 18px 0;
+  font-size: 12px;
+  color: var(--text-primary);
+  line-height: 1.6;
+  max-width: 66ch;
+}
+
+.callout > strong {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--ikea-yellow);
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  font-size: 9px;
+  font-weight: 600;
+}
+
+.gotcha-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.gotcha {
+  border: 1px solid rgba(245, 241, 232, 0.08);
+  border-radius: 3px;
+  padding: 14px 16px 16px;
+  background: rgba(0,0,0,0.2);
+}
+
+.gotcha h4 {
+  font-family: 'Fraunces', 'Times New Roman', serif;
+  font-style: italic;
+  font-size: 16px;
+  color: var(--text-primary);
+  margin-bottom: 6px;
+  font-weight: 400;
+}
+
+.gotcha p {
+  font-size: 11px;
+  color: var(--text-dim);
+  line-height: 1.55;
+  max-width: none;
+  margin-bottom: 0;
+}
+
+/* ============ ANIMATIONS ============ */
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes brandIn {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(24px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@keyframes slideInLeft {
+  from { opacity: 0; transform: translateX(-24px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@keyframes fadeScale {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@media (max-width: 1180px) {
+  .telemetry, .threshold, .controls { width: 252px; }
+  .minimap { width: 268px; }
+  .minimap canvas { width: 242px; height: 242px; }
+  .threshold svg { width: 200px; height: 200px; }
+}
+
+@media (max-height: 820px) {
+  .threshold { top: 286px; }
+}
+</style>
+</head>
+<body>
+
+<canvas id="three-canvas"></canvas>
+<div class="bg-grid"></div>
+<div id="vignette"></div>
+
+<a class="back-to-tutorial" href="../">&larr; tutorial</a>
+
+<header class="brand">
+  <div class="brand-mark">&#8734;</div>
+  <div class="brand-text">
+    <h1>Infinite Ikea</h1>
+    <div class="kicker">Floating Origin Demonstration</div>
+    <small class="sub">As you traverse, the engine quietly teleports the world back toward zero ; keeping you forever in the small, precise center of the float-space.</small>
+  </div>
+</header>
+
+<section class="panel telemetry">
+  <header class="panel-head">
+    <span class="tag">01 &middot; telemetry</span>
+    <span class="tag-aux" id="fps">&middot; fps</span>
+  </header>
+  <dl>
+    <div class="row"><dt>Absolute Pos</dt><dd id="abs-pos">0 <span class="sep">&middot;</span> 0</dd></div>
+    <div class="row"><dt>Local Engine</dt><dd id="local-pos" class="highlight">0 <span class="sep">&middot;</span> 0</dd></div>
+    <div class="row"><dt>Global Offset</dt><dd id="offset">0 <span class="sep">&middot;</span> 0</dd></div>
+    <div class="row"><dt>Chunk Index</dt><dd id="chunk-idx">0 <span class="sep">&middot;</span> 0</dd></div>
+    <div class="row"><dt>Heading</dt><dd id="heading">N <span class="sep">&middot;</span> 0&deg;</dd></div>
+    <div class="row"><dt>Speed</dt><dd id="speed">0 u/s</dd></div>
+  </dl>
+</section>
+
+<section class="panel threshold">
+  <header class="panel-head">
+    <span class="tag">02 &middot; origin threshold</span>
+    <span class="tag-aux">r = 300 u</span>
+  </header>
+  <div class="ring-wrap">
+    <svg viewBox="-160 -160 320 320">
+      <line class="crosshair-line" x1="-150" y1="0" x2="150" y2="0"/>
+      <line class="crosshair-line" x1="0" y1="-150" x2="0" y2="150"/>
+      <circle class="grid-ring" r="46"/>
+      <circle class="grid-ring" r="93"/>
+      <circle id="threshold-ring" r="140"/>
+      <line id="heading-line" x1="0" y1="0" x2="0" y2="-22"/>
+      <circle id="player-dot" cx="0" cy="0" r="6"/>
+    </svg>
+    <div class="ring-stat">
+      <div>
+        <span class="dim">Shifts</span>
+        <strong id="shift-count">0</strong>
+      </div>
+      <div style="align-items: flex-end;">
+        <span class="dim">Distance</span>
+        <strong><span id="local-dist">0</span><span class="dim">/300</span></strong>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="panel minimap">
+  <header class="panel-head">
+    <span class="tag">03 &middot; chunk atlas</span>
+    <span class="tag-aux">seed 42</span>
+  </header>
+  <canvas id="minimap" width="572" height="572"></canvas>
+  <div class="legend">
+    <span><i class="dot loaded"></i>loaded</span>
+    <span><i class="dot current"></i>current</span>
+    <span><i class="dot ghost"></i>visited</span>
+  </div>
+</section>
+
+<footer class="panel controls">
+  <header class="panel-head">
+    <span class="tag">04 &middot; controls</span>
+  </header>
+  <div class="control-grid">
+    <div class="ctrl"><span class="keys"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span><em>traverse</em></div>
+    <div class="ctrl"><span class="keys"><kbd>SHIFT</kbd></span><em>boost &middot; 14&times;</em></div>
+    <div class="ctrl"><span class="keys"><kbd>SPACE</kbd></span><em>ascend</em></div>
+    <div class="ctrl"><span class="keys"><kbd>CTRL</kbd></span><em>descend</em></div>
+    <div class="ctrl"><span class="keys"><kbd>MOUSE</kbd></span><em>look &middot; click to lock</em></div>
+    <div class="ctrl"><span class="keys"><kbd>ESC</kbd></span><em>release</em></div>
+  </div>
+</footer>
+
+<div class="speed-indicator" id="speed-indicator">
+  <span class="label">velocity</span>
+  <span class="num" id="big-speed">0</span>
+  <span class="unit">u/s</span>
+</div>
+
+<div class="center-cross"></div>
+
+<div id="flash"></div>
+
+<div id="shift-banner">
+  <span class="kicker">origin event</span>
+  <span class="big">Shift</span>
+  <span class="num" id="banner-num">#001</span>
+</div>
+
+<div id="lock-prompt" class="visible">
+  <div class="icon">&#8982;</div>
+  <strong>Click to engage</strong>
+  <p>WASD &middot; SHIFT to boost &middot; mouse to look</p>
+</div>
+
+<div class="footnote"><em>built as a reference demo &middot; single static html &middot; seed&nbsp;42</em></div>
+
+<button class="tutorial-toggle" id="tutorial-toggle">
+  <span>How this works</span>
+  <span class="key-hint">H</span>
+</button>
+
+<div class="modal" id="modal" aria-hidden="true">
+  <div class="modal-card">
+    <header class="modal-head">
+      <div>
+        <span class="kicker-tag">technique &middot; 1996, originally for flight sims</span>
+        <h2>What is a <span class="accent">Floating Origin</span>?</h2>
+      </div>
+      <button class="modal-close" id="modal-close" aria-label="Close">&times;</button>
+    </header>
+    <nav class="modal-tabs">
+      <button class="modal-tab active" data-pane="concept">01 &middot; The Concept</button>
+      <button class="modal-tab" data-pane="pseudo">02 &middot; Pseudocode</button>
+      <button class="modal-tab" data-pane="unity">03 &middot; Unity C#</button>
+    </nav>
+    <div class="modal-body">
+
+      <div class="pane active" id="pane-concept">
+        <h3>The problem</h3>
+        <p>3D engines store positions as 32-bit floats. They get roughly <strong>7 digits of precision</strong>. At <code>X = 50,000</code>, the smallest distinguishable step is around <code>0.004</code>. At <code>X = 1,000,000</code> it's <code>0.06</code> ; bigger than a footstep. Vertices jitter, physics rattle, the camera shakes. This is the wall every open-world game eventually hits.</p>
+
+        <h3>The trick</h3>
+        <p>Lie to the engine. Keep the player physically near <code>(0, 0, 0)</code> at all times. When they drift past a threshold (say 300 units), <strong>teleport them back to zero, and shift the entire world the same amount in the same direction.</strong> From inside the engine, nothing changed: same relative positions, same view, same physics. But your camera coordinates stayed small and precise.</p>
+
+        <h3>Tracking the real world</h3>
+        <p>Game logic still needs to know where the player <em>actually</em> is, so it can seed chunks, save the game, talk to a server. So you maintain a separate <code>globalOffset</code> in 64-bit doubles (in JavaScript every number is already a double; in C# use <code>double</code>). Each shift adds to it. The player's <strong>absolute position is always <code>engineCamera + globalOffset</code></strong>.</p>
+
+        <h3>Why moving a single "world" parent doesn't work</h3>
+        <p>A common first instinct is to parent every chunk to one big <code>worldRoot</code> transform and translate that root instead of the player. It seems clean, but it breaks for the same reason as before: once the root drifts to <code>4,000,000</code>, your child translations like <code>0.001</code> round down to zero. The float precision lives at the <em>final composed transform</em>, not just at the player. Shifting each chunk individually (or shifting a small pool of nearby roots) is the version that actually works.</p>
+
+        <div class="callout">
+          <strong>Watch the demo</strong>
+          The yellow pillar sits at engine origin <code>(0, 0, 0)</code>. As you walk, it stays put, because it does. When the floating-origin event fires, the pillar appears to teleport <em>toward you</em>, but actually you teleported to it. Everything else shifts to compensate, so the world looks seamless. Hold <code>SHIFT</code> to traverse fast and trigger shifts in seconds.
+        </div>
+      </div>
+
+      <div class="pane" id="pane-pseudo">
+        <h3>Setup</h3>
+        <p>Two coordinate systems running side by side: <strong>engine space</strong> (small, near zero, lossy floats) and <strong>world space</strong> (huge, precise, doubles or 64-bit ints).</p>
+
+        <pre data-lang="pseudo"><code>const THRESHOLD  = 300        <span class="c-cmt">// distance before shift</span>
+const CHUNK_SIZE = 100
+
+vec engineCam     = (0, 0, 0) <span class="c-cmt">// what the renderer sees, kept near 0</span>
+vec globalOffset  = (0, 0, 0) <span class="c-cmt">// accumulated shifts (doubles)</span>
+map chunks        = {}        <span class="c-cmt">// chunkKey -&gt; mesh</span></code></pre>
+
+        <h3>Per frame</h3>
+        <pre data-lang="pseudo"><code><span class="c-cmt">// 1. Apply input to the engine camera (small numbers)</span>
+engineCam += inputDir * speed * dt
+
+<span class="c-cmt">// 2. Derive your absolute world position</span>
+absPos = engineCam + globalOffset
+
+<span class="c-cmt">// 3. Generate / unload chunks based on absPos</span>
+chunkX = floor(absPos.x / CHUNK_SIZE)
+chunkZ = floor(absPos.z / CHUNK_SIZE)
+loadChunksAround(chunkX, chunkZ)
+
+<span class="c-cmt">// 4. If the engine camera drifted too far, recenter</span>
+<span class="c-kw">if</span> length(engineCam.xz) &gt; THRESHOLD:
+    shift          = (engineCam.x, 0, engineCam.z)
+    globalOffset  += shift
+    engineCam     -= shift
+    <span class="c-kw">for</span> chunk <span class="c-kw">in</span> chunks: chunk.position -= shift</code></pre>
+
+        <h3>Placing a chunk</h3>
+        <p>A chunk at world coordinates lives in engine space by subtracting the offset:</p>
+        <pre data-lang="pseudo"><code>engineX = (chunkX + 0.5) * CHUNK_SIZE - globalOffset.x
+engineZ = (chunkZ + 0.5) * CHUNK_SIZE - globalOffset.z</code></pre>
+
+        <h3>Generating content deterministically</h3>
+        <p>Hash the chunk's <em>world</em> coordinates (never engine coords) with a fixed seed to feed a PRNG. Same chunk &rarr; same contents, every time, every machine. No need to save anything to disk:</p>
+        <pre data-lang="pseudo"><code>seed = hash(chunkX, chunkZ, WORLD_SEED)
+rng  = Mulberry32(seed)
+<span class="c-kw">for</span> i <span class="c-kw">in</span> 0..fixtureCount:
+    placeShelf(rng() * width, rng() * height)</code></pre>
+
+        <div class="callout">
+          <strong>Threshold rule of thumb</strong>
+          Big enough that you don't shift every frame, small enough that floats stay precise. <code>300&ndash;1000</code> works in most engines. Browsers tend toward the lower end; native engines like Unity / Unreal handle larger ranges comfortably.
+        </div>
+      </div>
+
+      <div class="pane" id="pane-unity">
+        <h3>FloatingOrigin.cs</h3>
+        <p>Attach to a manager GameObject. <code>player</code> is whatever you consider the center of the world (usually the main camera root or character controller). Threshold of <code>1000</code> is a typical Unity choice (the float-stable range is generous before precision visibly suffers).</p>
+
+        <pre data-lang="C#"><code><span class="c-kw">using</span> UnityEngine;
+<span class="c-kw">using</span> UnityEngine.SceneManagement;
+
+<span class="c-kw">public class</span> <span class="c-typ">FloatingOrigin</span> : <span class="c-typ">MonoBehaviour</span>
+{
+    <span class="c-kw">public</span> <span class="c-typ">Transform</span> player;
+    <span class="c-kw">public</span> <span class="c-typ">float</span> threshold = <span class="c-num">1000f</span>;
+
+    <span class="c-cmt">// Doubles survive way past Unity float range.</span>
+    <span class="c-kw">public</span> <span class="c-typ">double</span> absoluteX, absoluteZ;
+
+    <span class="c-cmt">// Cache these at chunk load ; FindObjectsOfType is slow.</span>
+    [<span class="c-typ">SerializeField</span>] <span class="c-typ">Rigidbody</span>[] trackedBodies;
+    [<span class="c-typ">SerializeField</span>] <span class="c-typ">ParticleSystem</span>[] trackedParticles;
+
+    <span class="c-kw">void</span> <span class="c-fn">LateUpdate</span>()
+    {
+        <span class="c-typ">Vector3</span> p = player.position;
+        <span class="c-kw">if</span> (p.x * p.x + p.z * p.z &lt; threshold * threshold) <span class="c-kw">return</span>;
+
+        <span class="c-typ">Vector3</span> shift = <span class="c-kw">new</span> <span class="c-typ">Vector3</span>(p.x, <span class="c-num">0f</span>, p.z);
+        absoluteX += shift.x;
+        absoluteZ += shift.z;
+
+        <span class="c-cmt">// 1. Recenter every root transform.</span>
+        <span class="c-kw">foreach</span> (<span class="c-typ">GameObject</span> root <span class="c-kw">in</span> SceneManager.GetActiveScene().GetRootGameObjects())
+            root.transform.position -= shift;
+
+        <span class="c-cmt">// 2. Nudge active rigidbodies so interpolation doesn't snap.</span>
+        <span class="c-kw">foreach</span> (<span class="c-typ">Rigidbody</span> rb <span class="c-kw">in</span> trackedBodies)
+            <span class="c-kw">if</span> (rb &amp;&amp; !rb.isKinematic) rb.position -= shift;
+
+        <span class="c-cmt">// 3. Translate every live particle in world-simulated systems.</span>
+        <span class="c-kw">foreach</span> (<span class="c-typ">ParticleSystem</span> ps <span class="c-kw">in</span> trackedParticles)
+        {
+            <span class="c-kw">if</span> (!ps || ps.main.simulationSpace != <span class="c-typ">ParticleSystemSimulationSpace</span>.World) <span class="c-kw">continue</span>;
+            <span class="c-kw">var</span> buf = <span class="c-kw">new</span> <span class="c-typ">ParticleSystem</span>.<span class="c-typ">Particle</span>[ps.particleCount];
+            <span class="c-typ">int</span> n = ps.<span class="c-fn">GetParticles</span>(buf);
+            <span class="c-kw">for</span> (<span class="c-typ">int</span> i = <span class="c-num">0</span>; i &lt; n; i++) buf[i].position -= shift;
+            ps.<span class="c-fn">SetParticles</span>(buf, n);
+        }
+    }
+}</code></pre>
+
+        <h3>Reading the absolute position</h3>
+        <pre data-lang="C#"><code><span class="c-cmt">// Anywhere in your code:</span>
+<span class="c-typ">Vector3</span> engine = player.position;
+<span class="c-typ">double</span> worldX = origin.absoluteX + engine.x;
+<span class="c-typ">double</span> worldZ = origin.absoluteZ + engine.z;
+
+<span class="c-cmt">// Feed worldX/worldZ to chunk generation, save files, network sync, etc.</span>
+<span class="c-typ">int</span> chunkX = (<span class="c-typ">int</span>)<span class="c-typ">System</span>.<span class="c-typ">Math</span>.<span class="c-fn">Floor</span>(worldX / CHUNK_SIZE);
+<span class="c-typ">int</span> chunkZ = (<span class="c-typ">int</span>)<span class="c-typ">System</span>.<span class="c-typ">Math</span>.<span class="c-fn">Floor</span>(worldZ / CHUNK_SIZE);</code></pre>
+
+        <h3>What you still need to handle</h3>
+        <div class="gotcha-grid">
+          <div class="gotcha">
+            <h4>Rigidbodies</h4>
+            <p>Set <code>position</code> directly on shift. Don't use <code>MovePosition</code> ; it interpolates and you'll see a snap.</p>
+          </div>
+          <div class="gotcha">
+            <h4>Particles</h4>
+            <p>Only world-simulated particles need translation. Local-space particles move with their transform automatically.</p>
+          </div>
+          <div class="gotcha">
+            <h4>Trails &amp; Line Renderers</h4>
+            <p>Their internal points live in world space. Either <code>Clear()</code> them on shift, or iterate <code>GetPositions</code> and offset every vertex.</p>
+          </div>
+          <div class="gotcha">
+            <h4>Audio Sources</h4>
+            <p>3D positional audio on transforms shifts cleanly. For streaming sources, parent them to the player so they never drift at all.</p>
+          </div>
+          <div class="gotcha">
+            <h4>NavMesh</h4>
+            <p>Bake per chunk with <code>NavMeshSurface</code>. A monolithic baked mesh tied to world coords won't survive shifts.</p>
+          </div>
+          <div class="gotcha">
+            <h4>Networked clients</h4>
+            <p>Each client has its own origin. Sync the <em>absolute</em> position over the wire, then convert to local engine space on receive.</p>
+          </div>
+        </div>
+
+        <div class="callout">
+          <strong>Performance</strong>
+          <code>FindObjectsOfType</code> in <code>LateUpdate</code> would tank your frame time. Cache the rigidbodies and particle systems when chunks spawn, drop them when chunks despawn. The shift itself is cheap once the lists are pre-built.
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+'use strict';
+
+// ====================================================
+// CONSTANTS
+// ====================================================
+const CHUNK_SIZE = 100;
+const RENDER_DISTANCE = 3;          // 7x7 grid of chunks loaded around player
+const GLOBAL_SEED = 42;
+const FLOATING_ORIGIN_THRESHOLD = 300;
+const PLAYER_HEIGHT = 5;
+const BASE_SPEED = 26;
+const BOOST_MULTIPLIER = 14;
+const FLY_SPEED = 22;
+const MAX_VISITED = 280;
+
+// ====================================================
+// STATE
+// ====================================================
+const globalOffset = new THREE.Vector3(0, 0, 0);
+const activeChunks = new Map();
+const visitedChunks = new Set();
+const visitedOrder = [];
+
+let shiftCount = 0;
+let absPlayerX = 0;
+let absPlayerZ = 0;
+let prevAbsX = 0;
+let prevAbsZ = 0;
+let displaySpeed = 0;
+let lastFrameTime = performance.now();
+let fpsFrames = 0;
+let fpsLastUpdate = performance.now();
+
+// ====================================================
+// THREE.JS SETUP
+// ====================================================
+const canvas = document.getElementById('three-canvas');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x14110d);
+
+const fogColor = new THREE.Color(0x1e1a14);
+scene.fog = new THREE.Fog(fogColor, CHUNK_SIZE * 0.6, CHUNK_SIZE * (RENDER_DISTANCE + 0.5));
+scene.background = fogColor;
+
+const camera = new THREE.PerspectiveCamera(
+  72,
+  window.innerWidth / window.innerHeight,
+  0.1,
+  CHUNK_SIZE * (RENDER_DISTANCE + 1)
+);
+camera.position.set(0, PLAYER_HEIGHT, 0);
+
+const renderer = new THREE.WebGLRenderer({
+  canvas,
+  antialias: true,
+  powerPreference: 'high-performance'
+});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+
+// Lighting ; warm warehouse vibe
+scene.add(new THREE.AmbientLight(0xfff4d6, 0.5));
+
+const sun = new THREE.DirectionalLight(0xfff0c8, 0.7);
+sun.position.set(80, 140, 60);
+scene.add(sun);
+
+const fill = new THREE.DirectionalLight(0x6688cc, 0.3);
+fill.position.set(-50, 60, -40);
+scene.add(fill);
+
+// Origin marker ; a fixed glowing yellow pillar at engine (0, 0, 0).
+// It does NOT move with the chunks. When a floating-origin shift fires,
+// the player snaps onto it ; you literally see the pillar leap toward you.
+const pillarGeo = new THREE.CylinderGeometry(0.4, 0.4, 60, 8);
+const pillarMat = new THREE.MeshBasicMaterial({
+  color: 0xffda1a,
+  transparent: true,
+  opacity: 0.92
+});
+const originPillar = new THREE.Mesh(pillarGeo, pillarMat);
+originPillar.position.set(0, 30, 0);
+scene.add(originPillar);
+
+// Halo at pillar base
+const haloGeo = new THREE.RingGeometry(1.4, 3.2, 48);
+const haloMat = new THREE.MeshBasicMaterial({
+  color: 0xffda1a,
+  transparent: true,
+  opacity: 0.25,
+  side: THREE.DoubleSide
+});
+const halo = new THREE.Mesh(haloGeo, haloMat);
+halo.rotation.x = -Math.PI / 2;
+halo.position.y = 0.06;
+scene.add(halo);
+
+// Small floating tag above the pillar ; a wireframe ring marking "origin"
+const tagGeo = new THREE.TorusGeometry(1.8, 0.05, 8, 32);
+const tagMat = new THREE.MeshBasicMaterial({ color: 0xffda1a, transparent: true, opacity: 0.6 });
+const originTag = new THREE.Mesh(tagGeo, tagMat);
+originTag.rotation.x = Math.PI / 2;
+originTag.position.y = 56;
+scene.add(originTag);
+
+// ====================================================
+// SEEDED RANDOM
+// ====================================================
+function mulberry32(seed) {
+  let t = seed | 0;
+  return function() {
+    t = (t + 0x6D2B79F5) | 0;
+    let r = Math.imul(t ^ (t >>> 15), t | 1);
+    r ^= r + Math.imul(r ^ (r >>> 7), r | 61);
+    return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function chunkHash(cx, cz, salt) {
+  let h = Math.imul(cx | 0, 374761393);
+  h = (h + Math.imul(cz | 0, 668265263)) | 0;
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  h = (h + (salt | 0)) | 0;
+  return h >>> 0;
+}
+
+// ====================================================
+// SHARED ASSETS
+// ====================================================
+const PALETTE = [
+  new THREE.MeshLambertMaterial({ color: 0x0051ba }), // ikea blue
+  new THREE.MeshLambertMaterial({ color: 0xffda1a }), // ikea yellow
+  new THREE.MeshLambertMaterial({ color: 0x8b5a2b }), // wood
+  new THREE.MeshLambertMaterial({ color: 0xe8e2d4 }), // cream
+  new THREE.MeshLambertMaterial({ color: 0x2a2826 })  // graphite
+];
+
+const GEO = {
+  floor: new THREE.PlaneGeometry(CHUNK_SIZE, CHUNK_SIZE),
+  tallShelf: new THREE.BoxGeometry(4, 18, 12),
+  mediumShelf: new THREE.BoxGeometry(6, 10, 14),
+  lowTable: new THREE.BoxGeometry(8, 3, 9),
+  pallet: new THREE.BoxGeometry(6, 1.2, 6),
+  pillar: new THREE.CylinderGeometry(0.45, 0.45, 24, 6)
+};
+
+const FLOOR_LIGHT = new THREE.MeshLambertMaterial({ color: 0xcfc8b8 });
+const FLOOR_DARK = new THREE.MeshLambertMaterial({ color: 0xb8b1a2 });
+const GRID_MAT = new THREE.LineBasicMaterial({ color: 0x2b7ee8, transparent: true, opacity: 0.22 });
+
+const CHUNK_LINE_GEO = (function() {
+  const geo = new THREE.BufferGeometry();
+  const h = CHUNK_SIZE / 2;
+  const y = 0.04;
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array([
+    -h, y, -h,  h, y, -h,
+     h, y, -h,  h, y,  h,
+     h, y,  h, -h, y,  h,
+    -h, y,  h, -h, y, -h
+  ]), 3));
+  return geo;
+})();
+
+// ====================================================
+// CHUNK GENERATION
+// ====================================================
+function createChunk(cx, cz) {
+  const group = new THREE.Group();
+  const rand = mulberry32(chunkHash(cx, cz, GLOBAL_SEED));
+
+  // Floor (alternates light/dark per chunk for visible borders)
+  const floor = new THREE.Mesh(GEO.floor, rand() > 0.5 ? FLOOR_LIGHT : FLOOR_DARK);
+  floor.rotation.x = -Math.PI / 2;
+  group.add(floor);
+
+  // Chunk boundary outline
+  group.add(new THREE.LineSegments(CHUNK_LINE_GEO, GRID_MAT));
+
+  // Fixtures
+  const fixtureCount = Math.floor(rand() * 14) + 7;
+  const placed = [];
+  const aisleAlign = rand() > 0.5; // chunk-wide aisle direction
+
+  for (let i = 0; i < fixtureCount; i++) {
+    const x = (rand() - 0.5) * (CHUNK_SIZE - 14);
+    const z = (rand() - 0.5) * (CHUNK_SIZE - 14);
+
+    // Soft spacing check
+    let ok = true;
+    for (const p of placed) {
+      if ((x - p.x) ** 2 + (z - p.z) ** 2 < 110) { ok = false; break; }
+    }
+    if (!ok) continue;
+    placed.push({ x, z });
+
+    const typeRoll = rand();
+    const mat = PALETTE[Math.floor(rand() * PALETTE.length)];
+    let mesh;
+
+    if (typeRoll < 0.38) {
+      mesh = new THREE.Mesh(GEO.tallShelf, mat);
+      mesh.position.set(x, 9, z);
+    } else if (typeRoll < 0.62) {
+      mesh = new THREE.Mesh(GEO.mediumShelf, mat);
+      mesh.position.set(x, 5, z);
+    } else if (typeRoll < 0.82) {
+      mesh = new THREE.Mesh(GEO.lowTable, mat);
+      mesh.position.set(x, 1.5, z);
+    } else {
+      // Pallet stack ; variable height
+      const stack = new THREE.Group();
+      const stackCount = Math.floor(rand() * 3) + 1;
+      for (let s = 0; s < stackCount; s++) {
+        const pal = new THREE.Mesh(GEO.pallet, mat);
+        pal.position.set(0, 0.6 + s * 1.3, 0);
+        stack.add(pal);
+      }
+      stack.position.set(x, 0, z);
+      group.add(stack);
+      continue;
+    }
+
+    if (aisleAlign ? rand() > 0.25 : rand() > 0.75) mesh.rotation.y = Math.PI / 2;
+    group.add(mesh);
+  }
+
+  // Occasional structural pillar
+  if (rand() > 0.45) {
+    const p = new THREE.Mesh(GEO.pillar, PALETTE[4]);
+    p.position.set((rand() - 0.5) * 70, 12, (rand() - 0.5) * 70);
+    group.add(p);
+  }
+
+  return group;
+}
+
+// ====================================================
+// CHUNK MANAGER
+// ====================================================
+function chunkKey(cx, cz) { return cx + ',' + cz; }
+
+function updateChunks() {
+  const currentCX = Math.floor(absPlayerX / CHUNK_SIZE);
+  const currentCZ = Math.floor(absPlayerZ / CHUNK_SIZE);
+
+  const curKey = chunkKey(currentCX, currentCZ);
+  if (!visitedChunks.has(curKey)) {
+    visitedChunks.add(curKey);
+    visitedOrder.push(curKey);
+    while (visitedOrder.length > MAX_VISITED) {
+      visitedChunks.delete(visitedOrder.shift());
+    }
+  }
+
+  const needed = new Set();
+  for (let dx = -RENDER_DISTANCE; dx <= RENDER_DISTANCE; dx++) {
+    for (let dz = -RENDER_DISTANCE; dz <= RENDER_DISTANCE; dz++) {
+      const cx = currentCX + dx;
+      const cz = currentCZ + dz;
+      const key = chunkKey(cx, cz);
+      needed.add(key);
+
+      if (!activeChunks.has(key)) {
+        const mesh = createChunk(cx, cz);
+        // Position chunk so its corner lines up: chunk (cx,cz) covers [cx*S, (cx+1)*S)
+        mesh.position.x = (cx + 0.5) * CHUNK_SIZE - globalOffset.x;
+        mesh.position.z = (cz + 0.5) * CHUNK_SIZE - globalOffset.z;
+        scene.add(mesh);
+        activeChunks.set(key, mesh);
+      }
+    }
+  }
+
+  for (const [key, mesh] of activeChunks) {
+    if (!needed.has(key)) {
+      scene.remove(mesh);
+      activeChunks.delete(key);
+    }
+  }
+
+  return { currentCX, currentCZ };
+}
+
+// ====================================================
+// FLOATING ORIGIN
+// ====================================================
+function checkFloatingOrigin() {
+  const distSq = camera.position.x * camera.position.x + camera.position.z * camera.position.z;
+  if (distSq <= FLOATING_ORIGIN_THRESHOLD * FLOATING_ORIGIN_THRESHOLD) return false;
+
+  const sx = camera.position.x;
+  const sz = camera.position.z;
+
+  globalOffset.x += sx;
+  globalOffset.z += sz;
+
+  camera.position.x -= sx;
+  camera.position.z -= sz;
+
+  for (const mesh of activeChunks.values()) {
+    mesh.position.x -= sx;
+    mesh.position.z -= sz;
+  }
+  // NOTE: originPillar / halo / originTag stay put at engine (0,0,0).
+  // They visually "snap" toward the player ; that's the demo.
+
+  shiftCount++;
+  fireShiftEffect();
+  return true;
+}
+
+// ====================================================
+// MINIMAP
+// ====================================================
+const mapCanvas = document.getElementById('minimap');
+const mapCtx = mapCanvas.getContext('2d');
+const MAP_CHUNK_PX = 52; // pixels per chunk on the (doubled-res) canvas
+const MAP_CENTER = mapCanvas.width / 2;
+
+function drawMinimap(currentCX, currentCZ) {
+  const w = mapCanvas.width;
+  const h = mapCanvas.height;
+  const cx = MAP_CENTER;
+  const cy = MAP_CENTER;
+
+  // BG
+  mapCtx.fillStyle = '#06080c';
+  mapCtx.fillRect(0, 0, w, h);
+
+  // Sub-grid
+  mapCtx.strokeStyle = 'rgba(58, 141, 232, 0.07)';
+  mapCtx.lineWidth = 1;
+  for (let i = -7; i <= 7; i++) {
+    mapCtx.beginPath();
+    mapCtx.moveTo(cx + i * MAP_CHUNK_PX, 0);
+    mapCtx.lineTo(cx + i * MAP_CHUNK_PX, h);
+    mapCtx.stroke();
+    mapCtx.beginPath();
+    mapCtx.moveTo(0, cy + i * MAP_CHUNK_PX);
+    mapCtx.lineTo(w, cy + i * MAP_CHUNK_PX);
+    mapCtx.stroke();
+  }
+
+  // 1. Loaded chunks (background fill)
+  for (const key of activeChunks.keys()) {
+    const [vx, vz] = key.split(',').map(Number);
+    const dx = vx - currentCX;
+    const dz = vz - currentCZ;
+    if (dx === 0 && dz === 0) continue; // current drawn last
+    const rx = cx + dx * MAP_CHUNK_PX - MAP_CHUNK_PX / 2;
+    const ry = cy + dz * MAP_CHUNK_PX - MAP_CHUNK_PX / 2;
+    mapCtx.fillStyle = 'rgba(0, 81, 186, 0.5)';
+    mapCtx.fillRect(rx, ry, MAP_CHUNK_PX, MAP_CHUNK_PX);
+    mapCtx.strokeStyle = 'rgba(58, 141, 232, 0.7)';
+    mapCtx.lineWidth = 1.4;
+    mapCtx.strokeRect(rx + 0.7, ry + 0.7, MAP_CHUNK_PX - 1.4, MAP_CHUNK_PX - 1.4);
+  }
+
+  // 2. Visited overlay (yellow trail ; sits ON TOP of loaded chunks,
+  //    so the path through where you've been is clearly readable)
+  for (const key of visitedChunks) {
+    const [vx, vz] = key.split(',').map(Number);
+    const dx = vx - currentCX;
+    const dz = vz - currentCZ;
+    if (Math.abs(dx) > 5 || Math.abs(dz) > 5) continue;
+    if (dx === 0 && dz === 0) continue;
+    const rx = cx + dx * MAP_CHUNK_PX - MAP_CHUNK_PX / 2;
+    const ry = cy + dz * MAP_CHUNK_PX - MAP_CHUNK_PX / 2;
+
+    // Inset yellow square ; clearly marks "you were here"
+    const inset = 9;
+    const inSize = MAP_CHUNK_PX - inset * 2;
+    mapCtx.fillStyle = 'rgba(255, 218, 26, 0.4)';
+    mapCtx.fillRect(rx + inset, ry + inset, inSize, inSize);
+
+    // Bright outline so it pops over the blue
+    mapCtx.strokeStyle = 'rgba(255, 218, 26, 0.85)';
+    mapCtx.lineWidth = 1.5;
+    mapCtx.strokeRect(rx + inset + 0.75, ry + inset + 0.75, inSize - 1.5, inSize - 1.5);
+
+    // Corner ticks (top-left + bottom-right) for extra readability
+    mapCtx.fillStyle = '#ffda1a';
+    mapCtx.fillRect(rx + 3, ry + 3, 5, 5);
+    mapCtx.fillRect(rx + MAP_CHUNK_PX - 8, ry + MAP_CHUNK_PX - 8, 5, 5);
+  }
+
+  // 3. Current chunk highlight
+  {
+    const rx = cx - MAP_CHUNK_PX / 2;
+    const ry = cy - MAP_CHUNK_PX / 2;
+    mapCtx.fillStyle = 'rgba(255, 218, 26, 0.28)';
+    mapCtx.fillRect(rx, ry, MAP_CHUNK_PX, MAP_CHUNK_PX);
+    mapCtx.strokeStyle = '#ffda1a';
+    mapCtx.lineWidth = 3;
+    mapCtx.strokeRect(rx + 1.5, ry + 1.5, MAP_CHUNK_PX - 3, MAP_CHUNK_PX - 3);
+  }
+
+  // Render distance bracket
+  mapCtx.strokeStyle = 'rgba(255, 218, 26, 0.18)';
+  mapCtx.lineWidth = 1.4;
+  mapCtx.setLineDash([4, 6]);
+  const rdHalf = (RENDER_DISTANCE + 0.5) * MAP_CHUNK_PX;
+  mapCtx.strokeRect(cx - rdHalf, cy - rdHalf, rdHalf * 2, rdHalf * 2);
+  mapCtx.setLineDash([]);
+
+  // Player triangle
+  const subX = (absPlayerX / CHUNK_SIZE) - currentCX - 0.5;
+  const subZ = (absPlayerZ / CHUNK_SIZE) - currentCZ - 0.5;
+  const px = cx + subX * MAP_CHUNK_PX;
+  const py = cy + subZ * MAP_CHUNK_PX;
+
+  const fwd = new THREE.Vector3();
+  camera.getWorldDirection(fwd);
+  const bearing = Math.atan2(fwd.x, -fwd.z);
+
+  mapCtx.save();
+  mapCtx.translate(px, py);
+  mapCtx.rotate(bearing);
+  mapCtx.fillStyle = '#ffda1a';
+  mapCtx.shadowColor = '#ffda1a';
+  mapCtx.shadowBlur = 14;
+  mapCtx.beginPath();
+  mapCtx.moveTo(0, -14);
+  mapCtx.lineTo(10, 10);
+  mapCtx.lineTo(0, 5);
+  mapCtx.lineTo(-10, 10);
+  mapCtx.closePath();
+  mapCtx.fill();
+  mapCtx.restore();
+
+  // Compass markers
+  mapCtx.shadowBlur = 0;
+  mapCtx.fillStyle = 'rgba(245, 241, 232, 0.45)';
+  mapCtx.font = '18px "JetBrains Mono", monospace';
+  mapCtx.textAlign = 'center';
+  mapCtx.fillText('N', cx, 20);
+  mapCtx.fillText('S', cx, h - 8);
+  mapCtx.textAlign = 'right';
+  mapCtx.fillText('W', 16, cy + 6);
+  mapCtx.textAlign = 'left';
+  mapCtx.fillText('E', w - 16, cy + 6);
+}
+
+// ====================================================
+// UI ELEMENTS
+// ====================================================
+const elAbs = document.getElementById('abs-pos');
+const elLocal = document.getElementById('local-pos');
+const elOffset = document.getElementById('offset');
+const elChunkIdx = document.getElementById('chunk-idx');
+const elHeading = document.getElementById('heading');
+const elSpeed = document.getElementById('speed');
+const elFps = document.getElementById('fps');
+const elShiftCount = document.getElementById('shift-count');
+const elLocalDist = document.getElementById('local-dist');
+const elPlayerDot = document.getElementById('player-dot');
+const elThresholdRing = document.getElementById('threshold-ring');
+const elHeadingLine = document.getElementById('heading-line');
+const elBannerNum = document.getElementById('banner-num');
+const elBanner = document.getElementById('shift-banner');
+const elFlash = document.getElementById('flash');
+const elBigSpeed = document.getElementById('big-speed');
+const elSpeedIndicator = document.getElementById('speed-indicator');
+const lockPrompt = document.getElementById('lock-prompt');
+
+const CARDINALS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+function cardinalFor(deg) {
+  return CARDINALS[Math.round((((deg % 360) + 360) % 360) / 45) % 8];
+}
+
+function fmtSigned(n) {
+  const v = Math.round(n);
+  const sign = v < 0 ? '−' : '';
+  return sign + Math.abs(v).toLocaleString('en-US');
+}
+
+function updateTelemetry(currentCX, currentCZ) {
+  const localX = camera.position.x;
+  const localZ = camera.position.z;
+  const localDist = Math.sqrt(localX * localX + localZ * localZ);
+
+  elAbs.innerHTML = fmtSigned(absPlayerX) + ' <span class="sep">&middot;</span> ' + fmtSigned(absPlayerZ);
+  elLocal.innerHTML = fmtSigned(localX) + ' <span class="sep">&middot;</span> ' + fmtSigned(localZ);
+  elOffset.innerHTML = fmtSigned(globalOffset.x) + ' <span class="sep">&middot;</span> ' + fmtSigned(globalOffset.z);
+  elChunkIdx.innerHTML = fmtSigned(currentCX) + ' <span class="sep">&middot;</span> ' + fmtSigned(currentCZ);
+
+  const fwd = new THREE.Vector3();
+  camera.getWorldDirection(fwd);
+  const bearingRad = Math.atan2(fwd.x, -fwd.z);
+  const bearingDeg = ((bearingRad * 180 / Math.PI) + 360) % 360;
+  elHeading.innerHTML = cardinalFor(bearingDeg) + ' <span class="sep">&middot;</span> ' + Math.round(bearingDeg) + '&deg;';
+  elSpeed.textContent = Math.round(displaySpeed) + ' u/s';
+
+  elShiftCount.textContent = shiftCount;
+  elLocalDist.textContent = Math.round(localDist);
+
+  // Threshold ring dot
+  const dotX = (localX / FLOATING_ORIGIN_THRESHOLD) * 140;
+  const dotY = (localZ / FLOATING_ORIGIN_THRESHOLD) * 140;
+  elPlayerDot.setAttribute('cx', dotX);
+  elPlayerDot.setAttribute('cy', dotY);
+
+  const ratio = Math.min(localDist / FLOATING_ORIGIN_THRESHOLD, 1);
+  elThresholdRing.classList.toggle('warn', ratio > 0.55 && ratio < 0.85);
+  elThresholdRing.classList.toggle('danger', ratio >= 0.85);
+
+  // Heading line emerging from player dot
+  const hx = Math.sin(bearingRad) * 20;
+  const hy = -Math.cos(bearingRad) * 20;
+  elHeadingLine.setAttribute('x1', dotX);
+  elHeadingLine.setAttribute('y1', dotY);
+  elHeadingLine.setAttribute('x2', dotX + hx);
+  elHeadingLine.setAttribute('y2', dotY + hy);
+
+  // Big speed indicator
+  if (displaySpeed > 70) {
+    elSpeedIndicator.classList.add('visible');
+    elSpeedIndicator.classList.toggle('boost', keys.shift);
+    elBigSpeed.textContent = Math.round(displaySpeed);
+  } else {
+    elSpeedIndicator.classList.remove('visible');
+    elSpeedIndicator.classList.remove('boost');
+  }
+}
+
+function fireShiftEffect() {
+  elBannerNum.textContent = '#' + String(shiftCount).padStart(3, '0');
+  elBanner.classList.remove('fire');
+  void elBanner.offsetWidth;
+  elBanner.classList.add('fire');
+
+  elFlash.classList.remove('fire');
+  void elFlash.offsetWidth;
+  elFlash.classList.add('fire');
+
+  elThresholdRing.classList.remove('flash');
+  void elThresholdRing.getBoundingClientRect();
+  elThresholdRing.classList.add('flash');
+
+  elShiftCount.classList.remove('pop');
+  void elShiftCount.offsetWidth;
+  elShiftCount.classList.add('pop');
+}
+
+// ====================================================
+// CONTROLS
+// ====================================================
+const keys = { w: false, a: false, s: false, d: false, shift: false, space: false, ctrl: false };
+
+function setKey(e, val) {
+  const k = e.key.toLowerCase();
+  if (k === 'w' || k === 'a' || k === 's' || k === 'd') keys[k] = val;
+  if (e.key === 'Shift') keys.shift = val;
+  if (e.key === ' ') { keys.space = val; if (val) e.preventDefault(); }
+  if (e.key === 'Control') keys.ctrl = val;
+}
+document.addEventListener('keydown', e => setKey(e, true), { passive: false });
+document.addEventListener('keyup', e => setKey(e, false));
+
+let pitch = 0, yaw = 0;
+document.addEventListener('mousemove', e => {
+  if (document.pointerLockElement !== document.body) return;
+  yaw -= e.movementX * 0.0022;
+  pitch -= e.movementY * 0.0022;
+  pitch = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, pitch));
+  const qx = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), pitch);
+  const qy = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
+  camera.quaternion.copy(qy).multiply(qx);
+});
+
+document.body.addEventListener('click', () => {
+  if (modal.classList.contains('visible')) return;
+  if (document.pointerLockElement !== document.body) {
+    document.body.requestPointerLock();
+  }
+});
+document.addEventListener('pointerlockchange', () => {
+  if (document.pointerLockElement === document.body) {
+    lockPrompt.classList.remove('visible');
+  } else if (!modal.classList.contains('visible')) {
+    lockPrompt.classList.add('visible');
+  }
+});
+
+// ====================================================
+// MAIN LOOP
+// ====================================================
+const tmpVel = new THREE.Vector3();
+const upAxis = new THREE.Vector3(0, 1, 0);
+
+function tick() {
+  requestAnimationFrame(tick);
+
+  const now = performance.now();
+  const dt = Math.min((now - lastFrameTime) / 1000, 0.1);
+  lastFrameTime = now;
+
+  // FPS counter (twice/sec)
+  fpsFrames++;
+  if (now - fpsLastUpdate > 500) {
+    elFps.textContent = Math.round(fpsFrames * 1000 / (now - fpsLastUpdate)) + ' fps';
+    fpsFrames = 0;
+    fpsLastUpdate = now;
+  }
+
+  // Movement (only when pointer locked)
+  if (document.pointerLockElement === document.body) {
+    const speed = (keys.shift ? BASE_SPEED * BOOST_MULTIPLIER : BASE_SPEED) * dt;
+    tmpVel.set(0, 0, 0);
+    if (keys.w) tmpVel.z -= 1;
+    if (keys.s) tmpVel.z += 1;
+    if (keys.a) tmpVel.x -= 1;
+    if (keys.d) tmpVel.x += 1;
+    if (tmpVel.lengthSq() > 0) {
+      tmpVel.normalize().multiplyScalar(speed);
+      tmpVel.applyAxisAngle(upAxis, yaw);
+      camera.position.add(tmpVel);
+    }
+    const flyMul = keys.shift ? 4 : 1;
+    if (keys.space) camera.position.y += FLY_SPEED * dt * flyMul;
+    if (keys.ctrl) camera.position.y -= FLY_SPEED * dt * flyMul;
+    if (camera.position.y < PLAYER_HEIGHT) camera.position.y = PLAYER_HEIGHT;
+  }
+
+  // Update absolute position
+  prevAbsX = absPlayerX;
+  prevAbsZ = absPlayerZ;
+  absPlayerX = camera.position.x + globalOffset.x;
+  absPlayerZ = camera.position.z + globalOffset.z;
+
+  // Smoothed speed
+  const dx = absPlayerX - prevAbsX;
+  const dz = absPlayerZ - prevAbsZ;
+  const inst = dt > 0 ? Math.sqrt(dx * dx + dz * dz) / dt : 0;
+  displaySpeed += (inst - displaySpeed) * 0.18;
+
+  // Chunks + origin shift
+  const { currentCX, currentCZ } = updateChunks();
+  checkFloatingOrigin();
+  // (after shift, absPlayerX/Z are unchanged ; camera moved opposite the offset bump)
+
+  // Pillar pulse
+  const t = now * 0.001;
+  halo.scale.setScalar(1 + Math.sin(t * 2.1) * 0.18);
+  halo.material.opacity = 0.2 + Math.sin(t * 2.1) * 0.08;
+  originTag.rotation.z = t * 0.6;
+
+  drawMinimap(currentCX, currentCZ);
+  updateTelemetry(currentCX, currentCZ);
+
+  renderer.render(scene, camera);
+}
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// ====================================================
+// TUTORIAL MODAL
+// ====================================================
+const modal = document.getElementById('modal');
+const tutorialToggle = document.getElementById('tutorial-toggle');
+const modalClose = document.getElementById('modal-close');
+const tabs = document.querySelectorAll('.modal-tab');
+const panes = document.querySelectorAll('.pane');
+
+function openModal() {
+  if (document.pointerLockElement === document.body) document.exitPointerLock();
+  modal.classList.add('visible');
+  modal.setAttribute('aria-hidden', 'false');
+}
+
+function closeModal() {
+  modal.classList.remove('visible');
+  modal.setAttribute('aria-hidden', 'true');
+}
+
+tutorialToggle.addEventListener('click', e => {
+  e.stopPropagation();
+  openModal();
+});
+
+modalClose.addEventListener('click', e => {
+  e.stopPropagation();
+  closeModal();
+});
+
+// Click on backdrop (not the card) closes
+modal.addEventListener('click', e => {
+  e.stopPropagation();
+  if (e.target === modal) closeModal();
+});
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && modal.classList.contains('visible')) {
+    e.preventDefault();
+    closeModal();
+    return;
+  }
+  // H or ? opens the tutorial ; works even when pointer-locked, since
+  // the cursor is unreachable for clicks
+  if ((e.key === 'h' || e.key === 'H' || e.key === '?') && !modal.classList.contains('visible')) {
+    e.preventDefault();
+    openModal();
+  }
+});
+
+tabs.forEach(tab => {
+  tab.addEventListener('click', e => {
+    e.stopPropagation();
+    tabs.forEach(t => t.classList.remove('active'));
+    panes.forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('pane-' + tab.dataset.pane).classList.add('active');
+  });
+});
+
+// Prime: load initial chunks so the world isn't blank before first frame
+updateChunks();
+tick();
+</script>
+</body>
+</html>
